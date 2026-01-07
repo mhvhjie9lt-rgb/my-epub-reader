@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lite EPUB Reader</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <style>
+        :root { --bg: #ffffff; --text: #333; --panel: #f8f9fa; }
+        body { margin: 0; font-family: 'Pretendard', sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
+        /* 사이드바 목차 */
+        #toc { width: 250px; background: var(--panel); border-right: 1px solid #ddd; overflow-y: auto; padding: 20px; display: none; }
+        #toc ul { list-style: none; padding: 0; }
+        #toc li { margin-bottom: 10px; cursor: pointer; font-size: 14px; color: #555; }
+        #toc li:hover { color: #000; text-decoration: underline; }
+        /* 메인 뷰어 */
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #viewer { flex: 1; width: 100%; }
+        /* 컨트롤 바 */
+        #controls { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .btn { padding: 8px 15px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 4px; }
+        .btn:hover { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+
+<div id="toc"><h3>목차</h3><ul id="toc-list"></ul></div>
+
+<div id="main">
+    <div id="controls">
+        <input type="file" id="file-input" accept=".epub">
+        <div>
+            <button class="btn" id="prev">이전</button>
+            <button class="btn" id="next">다음</button>
+        </div>
+    </div>
+    <div id="viewer"></div>
+</div>
+
+<script>
+    let book = ePub();
+    let rendition;
+
+    document.getElementById("file-input").addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            if (rendition) rendition.destroy();
+            
+            book.open(event.target.result);
+            rendition = book.renderTo("viewer", { width: "100%", height: "100%", flow: "paginated" });
+            rendition.display();
+
+            // 목차 불러오기
+            book.loaded.navigation.then(function(nav) {
+                const tocList = document.getElementById("toc-list");
+                tocList.innerHTML = "";
+                document.getElementById("toc").style.display = "block";
+                nav.forEach(function(chapter) {
+                    const li = document.createElement("li");
+                    li.textContent = chapter.label;
+                    li.onclick = () => { rendition.display(chapter.href); };
+                    tocList.appendChild(li);
+                });
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById("prev").addEventListener("click", () => rendition?.prev());
+    document.getElementById("next").addEventListener("click", () => rendition?.next());
+    
+    // 키보드 제어
+    document.addEventListener("keyup", (e) => {
+        if (e.key === "ArrowLeft") rendition?.prev();
+        if (e.key === "ArrowRight") rendition?.next();
+    });
+</script>
+</body>
+</html>
