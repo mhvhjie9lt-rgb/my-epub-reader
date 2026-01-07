@@ -2,245 +2,171 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Ultimate Web Reader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Immersive Web Reader</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
-    
     <style>
-        /* CSS 변수 선언 (테마별 색상 관리) */
         :root {
             --primary-color: #3498db;
-            --bg-color: #f8f9fa; /* 웹페이지 배경 */
-            --panel-bg: #ffffff; /* 헤더/푸터/설정바 배경 */
-            --text-color: #333333; /* 기본 텍스트 색상 */
-            --border-color: #eeeeee;
+            --bg-color: #ffffff;
+            --ui-bg: rgba(255, 255, 255, 0.95);
+            --text-color: #333;
         }
 
-        /* 테마별 클래스 정의 */
-        body.sepia-theme {
-            --bg-color: #f2eecb; --panel-bg: #f4ecd8; --text-color: #5b4636; --border-color: #e0d9b9;
-        }
         body.dark-theme {
-            --bg-color: #121212; --panel-bg: #1e1e1e; --text-color: #cccccc; --border-color: #333333;
+            --bg-color: #121212; --ui-bg: rgba(30, 30, 30, 0.95); --text-color: #ccc;
         }
 
-        /* 기본 레이아웃 */
         body {
-            margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-            display: flex; flex-direction: column; height: 100vh;
+            margin: 0; padding: 0; height: 100vh; overflow: hidden;
             background-color: var(--bg-color); color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s; /* 부드러운 색상 전환 */
-            overflow: hidden;
+            font-family: 'Apple SD Gothic Neo', sans-serif;
         }
 
-        /* 공통 UI 요소 스타일 */
-        button {
-            padding: 6px 12px; border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-color);
-            border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
+        /* 상하단 메뉴 공통 스타일 */
+        .ui-bar {
+            position: fixed; left: 0; width: 100%; background: var(--ui-bg);
+            z-index: 100; transition: transform 0.3s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); backdrop-filter: blur(5px);
         }
-        button:hover { background: #f0f0f0; color: #000; border-color: #ccc; }
-        body.dark-theme button:hover { background: #333; color: #fff; border-color: #555; }
 
-        /* 1. 상단 헤더 */
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color);
-        }
-        #book-title { font-weight: bold; font-size: 1.1rem; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        input[type="file"] { font-size: 0.85rem; color: var(--text-color); }
+        header { top: 0; height: 60px; display: flex; align-items: center; padding: 0 20px; transform: translateY(-100%); }
+        header.show { transform: translateY(0); }
 
-        /* 2. 설정 툴바 (폰트/테마) */
-        #settings-toolbar {
-            display: flex; gap: 20px; align-items: center;
-            padding: 8px 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); font-size: 0.9rem;
-        }
-        .setting-group { display: flex; align-items: center; gap: 8px; }
-        /* 테마 원형 버튼 스타일 */
-        .theme-circle { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; box-shadow: inset 0 0 2px rgba(0,0,0,0.2);}
-        .theme-circle:hover, .theme-circle.active { border-color: var(--primary-color); transform: scale(1.1); }
+        footer { bottom: 0; padding: 15px 20px; transform: translateY(100%); display: flex; flex-direction: column; align-items: center; }
+        footer.show { transform: translateY(0); }
 
-        /* 3. 메인 뷰어 영역 */
-        #viewer-container {
-            flex: 1; position: relative; width: 100%; max-width: 900px;
-            margin: 0 auto; background: transparent; /* 책 자체 배경색을 따름 */
-        }
-        #viewer { height: 100%; width: 100%; }
+        #settings-bar { top: 60px; height: 50px; display: flex; gap: 15px; align-items: center; padding: 0 20px; font-size: 0.9rem; transform: translateY(-220%); }
+        #settings-bar.show { transform: translateY(0); }
 
-        /* 4. 하단 네비게이터 */
-        footer {
-            background: var(--panel-bg); border-top: 1px solid var(--border-color);
-            padding: 15px 20px; display: flex; flex-direction: column; gap: 10px; align-items: center;
-        }
-        .nav-buttons button { padding: 8px 20px; border-radius: 20px; font-size: 1rem; }
-        .progress-info { width: 100%; max-width: 600px; display: flex; align-items: center; gap: 15px; font-size: 0.85rem; opacity: 0.8; }
-        #progress-bar { flex: 1; height: 4px; accent-color: var(--primary-color); cursor: pointer;}
+        #viewer-container { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; }
+        #viewer { width: 100%; height: 100%; }
 
+        /* 터치 및 클릭 레이어 */
+        #touch-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+
+        .theme-circle { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 1px solid #ccc; }
+        .nav-btns button { padding: 8px 20px; border-radius: 20px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 0.9rem; }
+        #progress-bar { width: 250px; accent-color: var(--primary-color); cursor: pointer; }
     </style>
 </head>
-<body class="default-theme"> <header>
-    <div id="book-title">파일을 열어주세요</div>
+<body class="default-theme">
+
+<header class="ui-bar">
+    <div id="book-title" style="flex:1; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:10px;">파일을 선택하세요</div>
     <input type="file" id="file-input" accept=".epub">
 </header>
 
-<div id="settings-toolbar">
-    <div class="setting-group">
-        <span>글자 크기:</span>
-        <button id="font-down" title="작게">가-</button>
-        <button id="font-up" title="크게" style="font-weight:bold;">가+</button>
-    </div>
-    <div class="setting-group">
-        <span>테마:</span>
-        <div class="theme-circle active" data-theme="default" style="background:#fff;" title="기본"></div>
-        <div class="theme-circle" data-theme="sepia" style="background:#f4ecd8;" title="미색(눈편함)"></div>
-        <div class="theme-circle" data-theme="dark" style="background:#333;" title="다크모드"></div>
-    </div>
+<div id="settings-bar" class="ui-bar">
+    <span>글자 크기:</span>
+    <button id="font-down">가-</button><button id="font-up">가+</button>
+    <span style="margin-left:10px;">테마:</span>
+    <div class="theme-circle" data-theme="default" style="background:#fff;" title="라이트"></div>
+    <div class="theme-circle" data-theme="dark" style="background:#333;" title="다크"></div>
 </div>
 
 <div id="viewer-container">
+    <div id="touch-layer"></div>
     <div id="viewer"></div>
 </div>
 
-<footer>
-    <div class="nav-buttons">
-        <button id="prev">◀ 이전 페이지</button>
-        <button id="next">다음 페이지 ▶</button>
+<footer class="ui-bar">
+    <div class="nav-btns" style="margin-bottom:12px;">
+        <button id="prev">◀ 이전</button>
+        <button id="next">다음 ▶</button>
     </div>
-    <div class="progress-info">
+    <div style="display:flex; align-items:center; gap:15px; font-size:0.85rem; width:100%; max-width:500px; justify-content:center;">
         <span id="percent">0%</span>
-        <input type="range" id="progress-bar" value="0" min="0" max="100" step="1">
-        <span id="page-label"></span>
+        <input type="range" id="progress-bar" value="0">
+        <span id="page-label">0/0</span>
     </div>
 </footer>
 
-
 <script>
-    // 전역 변수 설정
     let book = ePub();
     let rendition;
-    let currentFontSize = 100; // 현재 폰트 크기 (%)
+    let currentFontSize = 100;
+    let uiVisible = false;
 
-    const fileInput = document.getElementById("file-input");
-    const progressBar = document.getElementById("progress-bar");
+    // UI 토글 함수
+    function toggleUI() {
+        uiVisible = !uiVisible;
+        document.querySelectorAll('.ui-bar').forEach(bar => bar.classList.toggle('show', uiVisible));
+    }
 
-    // 1. 파일 열기 및 초기화
-    fileInput.addEventListener("change", function(e) {
+    // 방향키 이벤트 처리 함수
+    function handleKeydown(e) {
+        if (e.key === "ArrowLeft") rendition?.prev();
+        if (e.key === "ArrowRight") rendition?.next();
+        if (e.key === "Escape" && uiVisible) toggleUI(); // ESC 누르면 메뉴 닫기
+    }
+
+    // 1. 브라우저 메인 창에 키 이벤트 등록
+    document.addEventListener("keydown", handleKeydown);
+
+    document.getElementById("touch-layer").addEventListener("click", (e) => {
+        const width = window.innerWidth;
+        const x = e.clientX;
+        if (x < width * 0.2) rendition?.prev();
+        else if (x > width * 0.8) rendition?.next();
+        else toggleUI();
+    });
+
+    document.getElementById("file-input").addEventListener("change", function(e) {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = function(event) {
-            if (rendition) rendition.destroy(); // 기존 책 제거
-            
+            if (rendition) rendition.destroy();
             book.open(event.target.result);
+            rendition = book.renderTo("viewer", { width: "100%", height: "100%", flow: "paginated" });
             
-            // 뷰어 렌더링 설정
-            rendition = book.renderTo("viewer", {
-                width: "100%", height: "100%",
-                flow: "paginated", // 페이지 넘김 방식
-                allowScriptedContent: true // 일부 책의 스크립트 허용
-            });
-
-            // 2. 테마 등록 (책 내부 스타일용)
-            rendition.themes.register("default", { "body": { "background": "#ffffff", "color": "#000000" } });
-            rendition.themes.register("sepia", { "body": { "background": "#f4ecd8", "color": "#5b4636" } });
-            // 다크모드는 책의 기본 스타일을 강제로 덮어써야 할 때가 많아 !important 사용
-            rendition.themes.register("dark", { 
-                "body": { "background": "#121212 !important", "color": "#cccccc !important" },
-                "p, h1, h2, h3, h4, span, div": { "color": "inherit !important", "background-color": "transparent !important" }
-            });
-
-            // 초기 설정 적용 (폰트, 테마)
-            rendition.themes.fontSize(currentFontSize + "%");
-            applyTheme(document.body.classList[0].replace("-theme","") || 'default');
-
-            // 책 표시
+            rendition.themes.register("default", { "body": { "background": "transparent", "color": "#000" }});
+            rendition.themes.register("dark", { "body": { "background": "transparent", "color": "#ccc" }});
+            
             rendition.display();
 
-            // 메타데이터(제목) 불러오기
-            book.loaded.metadata.then(meta => {
-                document.getElementById("book-title").textContent = meta.title;
-            });
+            // 2. 책 내부(iframe)에도 키 이벤트 등록 (이게 중요!)
+            rendition.on("keydown", handleKeydown);
 
-            // 위치 정보 생성 (진행률 바용)
+            book.loaded.metadata.then(meta => { document.getElementById("book-title").textContent = meta.title; });
             book.ready.then(() => book.locations.generate(1024)).then(updateProgress);
             rendition.on("relocated", updateProgress);
+            
+            uiVisible = false; toggleUI(); // 파일 열리면 메뉴 표시
         };
         reader.readAsArrayBuffer(file);
     });
 
-
-    // ================= 기능 구현 =================
-
-    // [기능 1] 폰트 크기 조절
-    document.getElementById("font-up").addEventListener("click", () => {
-        if (!rendition) return;
-        currentFontSize += 10;
-        rendition.themes.fontSize(currentFontSize + "%");
-    });
-    document.getElementById("font-down").addEventListener("click", () => {
-        if (!rendition || currentFontSize <= 60) return; // 최소 크기 제한
-        currentFontSize -= 10;
-        rendition.themes.fontSize(currentFontSize + "%");
-    });
-
-    // [기능 2] 테마 변경
-    const themeBtns = document.querySelectorAll('.theme-circle');
-    themeBtns.forEach(btn => {
+    // 테마/폰트 조절 버튼 (이전과 동일)
+    document.querySelectorAll('.theme-circle').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const themeName = e.target.dataset.theme;
-            applyTheme(themeName);
-            
-            // 버튼 활성 상태 표시 UI 업데이트
-            themeBtns.forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
+            const theme = e.target.dataset.theme;
+            document.body.className = theme + "-theme";
+            rendition.themes.select(theme);
         });
     });
 
-    function applyTheme(themeName) {
-        if (!rendition) return;
-        // 1. 웹페이지 바깥 부분 테마 적용 (CSS 클래스 변경)
-        document.body.className = themeName + "-theme";
-        // 2. 책 내부 콘텐츠 테마 적용 (epub.js 테마 선택)
-        rendition.themes.select(themeName);
-    }
+    document.getElementById("font-up").addEventListener("click", () => { currentFontSize += 10; rendition.themes.fontSize(currentFontSize + "%"); });
+    document.getElementById("font-down").addEventListener("click", () => { if(currentFontSize > 70) currentFontSize -= 10; rendition.themes.fontSize(currentFontSize + "%"); });
 
-
-    // [기능 3] 네비게이션 및 진행률
     function updateProgress() {
         if (!book.locations || !rendition.currentLocation()) return;
-        const currentLocation = rendition.currentLocation();
-        const progress = book.locations.percentageFromCfi(currentLocation.start.cfi);
-        const percentage = Math.floor(progress * 100);
-        
-        document.getElementById("percent").textContent = percentage + "%";
-        progressBar.value = percentage;
-
-        // 현재 페이지 / 전체 페이지 표시
-        const currentPage = book.locations.locationFromCfi(currentLocation.start.cfi);
-        const totalPages = book.locations.total;
-        if(totalPages > 0) {
-             document.getElementById("page-label").textContent = `${currentPage} / ${totalPages}`;
-        }
+        const loc = rendition.currentLocation();
+        const progress = book.locations.percentageFromCfi(loc.start.cfi);
+        document.getElementById("percent").textContent = Math.floor(progress * 100) + "%";
+        document.getElementById("progress-bar").value = progress * 100;
+        const currentPage = book.locations.locationFromCfi(loc.start.cfi);
+        document.getElementById("page-label").textContent = `${currentPage} / ${book.locations.total}`;
     }
 
     document.getElementById("prev").addEventListener("click", () => rendition?.prev());
     document.getElementById("next").addEventListener("click", () => rendition?.next());
-    
-    // 프로그레스 바 드래그 이동
-    progressBar.addEventListener("input", function() {
-        const cfi = book.locations.cfiFromPercentage(progressBar.value / 100);
+    document.getElementById("progress-bar").addEventListener("input", (e) => {
+        const cfi = book.locations.cfiFromPercentage(e.target.value / 100);
         rendition.display(cfi);
     });
-
-    // [기능 4] 키보드 및 창 크기 대응
-    document.addEventListener("keyup", e => {
-        if (e.key === "ArrowLeft") rendition?.prev();
-        if (e.key === "ArrowRight") rendition?.next();
-    });
-    window.addEventListener("resize", () => rendition?.resize());
-
 </script>
-
 </body>
 </html>
